@@ -431,8 +431,7 @@ plt.close()
 # In[ ]:
 
 
-R = [x.item() for x in rewards]
-plt.plot(R[-50:])
+
 
 # In[ ]:
 
