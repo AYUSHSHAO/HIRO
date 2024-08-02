@@ -439,17 +439,5 @@ plt.plot(R[-50:])
 
 
 
-# In[ ]:
-
-
-rewards[10]
-
-# In[ ]:
-
-
-avg_rewards[10]
-
-# In[ ]:
-
 
 
