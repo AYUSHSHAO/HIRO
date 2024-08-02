@@ -322,7 +322,7 @@ def check_goal(state, goal=0.143, threshold=0.001):
 
 
 
-for episode in range(500):
+for episode in range(5):
     propylene_glycol = []
     flowrate = []
     x0 = [0, 3.45, 0, 0, np.random.normal(75,0.02*75)]
@@ -427,7 +427,6 @@ plt.savefig(directory_TD3+'IAE_TD3.png', bbox_inches = 'tight')
 plt.close()
 
 #kdkdk d
-
 
 
 
