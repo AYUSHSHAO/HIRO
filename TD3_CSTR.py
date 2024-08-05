@@ -13,6 +13,7 @@ import torch.optim as optim
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from gym import spaces
+import sys
 tanh = np.tanh
 pow = math.pow
 #exp = np.exp
@@ -21,7 +22,7 @@ pow = math.pow
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-seed = 12369
+seed = 12368
 random.seed(seed)
 torch.manual_seed(seed)
 np.random.seed(seed)
@@ -306,6 +307,9 @@ episode_reward = []
 CSTR_TD3 = []
 IAE = []
 avg_IAE = []
+Least_Time = sys.maxsize  # minimum time in which goal concentration is achieved
+Least_Time_Episode = 0 # episode in which least time is achieved
+
 
 directory_TD3 = "./TD3/Reward_Plots/"
 directory_TD3_plot_G = "./TD3/Plot_G/"
@@ -322,10 +326,12 @@ def check_goal(state, goal=0.143, threshold=0.001):
 
 
 
-for episode in range(5):
+for episode in range(100):
     propylene_glycol = []
     flowrate = []
     x0 = [0, 3.45, 0, 0, np.random.normal(75,0.02*75)]
+    time_taken = 0  # time taken by the system to reach the goal concentration
+    goal_concentration_reached = False
     t = 0.01
     last_state = x0
     viability = []
@@ -368,8 +374,15 @@ for episode in range(5):
         iae += (np.abs(new_state_noise_2 - 0.143))
         reward = np.array(reward).flatten()
         episode_reward += reward
+        if last_state[2] >= 0.143 and not goal_concentration_reached:
+            goal_concentration_reached = True
+            time_taken = t
+
     print("batch: ", episode + 1, " reward: ", episode_reward)
     print("last state", last_state[2])
+    if time_taken < Least_Time and time_taken!= 0:
+        Least_Time = time_taken
+        Least_Time_Episode = episode + 1
     #if episode == 2:
         #plot_G(propylene_glycol, flowrate)
     name = directory_TD3_plot_G+ str(episode+1)
@@ -383,6 +396,8 @@ for episode in range(5):
     avg_IAE.append(np.mean(IAE[-10:]))
     CSTR_TD3.append(propylene_glycol)
     plot_G(propylene_glycol, tot_time, flowrate, name)
+print("Least Time", Least_Time)
+print("Least Time Episode", Least_Time_Episode)
 
 
 np.savetxt("CSTR_TD3.csv", CSTR_TD3, delimiter=",")

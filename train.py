@@ -1,13 +1,10 @@
 import torch
 from gym import spaces
-#import asset
 import math
 import numpy as np
 from scipy.integrate import odeint
-#from HAC import HAC
 import matplotlib.pyplot as plt
-from transesterification import get_state
-#from CSTR import CSTR
+import sys
 import random
 import torch.nn as nn
 import torch.optim as optim
@@ -20,9 +17,10 @@ tanh = np.tanh
 
 
 
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-seed = 12369
+seed = 12368
 random.seed(seed)
 torch.manual_seed(seed)
 np.random.seed(seed)
@@ -522,7 +520,7 @@ class DDPG_High:
 
 
 class HAC:
-    def __init__(self, k_level, policy_freq, tau, c, state_dim, action_dim, goal_dim, goal_index, goal, render,
+    def __init__(self, k_level, policy_freq, tau, c, state_dim, action_dim, goal_dim, goal_index, goal,
                  threshold, action_offset, state_offset, action_bounds, state_bounds, max_goal,
                  action_policy_noise, state_policy_noise, action_policy_clip, state_policy_clip, lr):
 
@@ -545,7 +543,6 @@ class HAC:
         self.action_dim = action_dim
         self.state_dim = state_dim
         self.threshold = threshold
-        self.render = render
         self.action_bounds = action_bounds
         self.action_offset = action_offset
 
@@ -650,6 +647,7 @@ class HAC:
         return action
 
     def run_HAC(self, env, i_level, state, tot_time, test):
+        goal_concentration_reached = False
 
         time = 0.01
         dt = 0.05
@@ -751,6 +749,9 @@ class HAC:
                 # 2.2.9 reset segment arguments & log (reward)
 
             # 2.2.10 update observations
+            if next_obs_noise[2] >= final_goal and not goal_concentration_reached:
+                goal_concentration_reached = True
+                self.timetaken = time
             state = next_obs_noise
             goal = next_goal
 
@@ -790,17 +791,8 @@ def train():
     env_name = "mAb_control"
 
     save_episode = 5  # keep saving every n episodes
-    max_episodes = 500            # max num of training episodes
-    random_seed = 0
-    render = False
-    
+    max_episodes = 100            # max num of training episodes
 
-
-    """
-     Actions (both primitive and subgoal) are implemented as follows:
-       action = ( network output (Tanh) * bounds ) + offset
-       clip_high and clip_low bound the exploration noise
-    """
 
     high = np.array([10, 10, 10, 10, 200])
 
@@ -876,7 +868,7 @@ def train():
     batch_size = 5
     lr = 0.001
     policy_freq = 2 # policy frequency to update TD3
-    tau = 0.005
+    tau = 1e-2
     
     # save trained models
     directory = "./preTrained/{}/{}level/".format(env_name, k_level)
@@ -892,7 +884,7 @@ def train():
     #seed = 50
     #torch.manual_seed(seed)
 
-    agent = HAC(k_level, policy_freq, tau, c, state_dim, action_dim, goal_dim, goal_index, goal, render, threshold,
+    agent = HAC(k_level, policy_freq, tau, c, state_dim, action_dim, goal_dim, goal_index, goal, threshold,
                 action_offset, state_offset, action_bounds, state_bounds, max_goal,action_policy_noise, state_policy_noise, action_policy_clip, state_policy_clip, lr)
     agent.set_parameters(lamda, gamma, n_iter, batch_size, action_clip_low, action_clip_high,
                          state_clip_low, state_clip_high, exploration_action_noise, exploration_state_noise)
@@ -909,6 +901,8 @@ def train():
     agent.average_reward = []
     agent.average_rmse = []
     agent.average_iae = []
+    Least_Time = sys.maxsize  # minimum time in which goal concentration is achieved
+    Least_Time_Episode = 0  # episode in which least time is achieved
 
     agent.CSTR = []
     #success = np.zeros(max_episodes)
@@ -922,6 +916,7 @@ def train():
 
 
     for i_episode in range(1, max_episodes+1):
+        agent.timetaken = 0  # time taken by the system to reach the goal concentration
         agent.reward = 0
         agent.lo = 0  # rmse
         agent.iae = 0
@@ -959,15 +954,20 @@ def train():
         #print("Last State",last_state[3])
         if i_episode % save_episode == 0:
             agent.save(directory, filename)
+
+        if agent.timetaken < Least_Time and agent.timetaken != 0:
+            Least_Time = agent.timetaken
+            Least_Time_Episode = i_episode
         
         print("Episode: {}\t Reward: {}".format(i_episode, agent.reward))
         print("state: ", last_state[2])
 
+
         name = directory_HIRO_plot_G + str(i_episode)
         plot_G(agent.propylene_glycol, tot_time, agent.flowrate, name)
 
-
-
+    print("Least Time", Least_Time)
+    print("Least Time Episode", Least_Time_Episode)
 
     font1 = {'family': 'serif', 'size': 15}
     font2 = {'family': 'serif', 'size': 15}
